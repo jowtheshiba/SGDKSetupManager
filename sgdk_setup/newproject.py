@@ -49,11 +49,11 @@ build_file_path: ""
 project_release_build_command: make -f __GDK__/makefile.gen release
 project_release_clean_command: make -f __GDK__/makefile.gen clean
 project_release_execute_args: ""
-project_release_target: out/rom.bin
+project_release_target: __ROM_RELEASE__
 project_debug_build_command: make -f __GDK__/makefile.gen debug
 project_debug_clean_command: make -f __GDK__/makefile.gen clean
 project_debug_execute_args: ""
-project_debug_target: out/rom.bin
+project_debug_target: __ROM_DEBUG__
 project_run_in_terminal: false
 """
 
@@ -76,10 +76,53 @@ Minimal Sega Mega Drive project built against SGDK (libmd).
 
 ## Build
 
+In VS Code press Cmd+Shift+B (default: release with symbols stripped)
+or pick a task via Tasks: Run Task:
+
+    SGDK: build release
+    SGDK: build debug
+    SGDK: clean
+
+Same from the terminal:
+
     make -f __GDK__/makefile.gen release
     make -f __GDK__/makefile.gen debug
 
-Load out/rom.bin in an emulator or flash it to a Mega EverDrive.
+Load the ROM (__ROM_RELEASE__ for release, __ROM_DEBUG__ for debug)
+in an emulator or flash it to a Mega EverDrive.
+
+## Genesis-Code extension
+
+The zerasul/genesis-code extension is only partly usable here:
+its Compile buttons go through Wine and will not work with this
+native toolchain, keep building with Cmd+Shift+B.
+Still useful: .res file completion, BitmapViewer and TMX import.
+
+## Debug
+
+Prerequisites (one time, debug only):
+
+    m68k-elf-gdb (no Homebrew bottle, build from source):
+    wget https://ftp.gnu.org/gnu/gdb/gdb-17.2.tar.gz
+    tar xzf gdb-17.2.tar.gz && mkdir build-gdb && cd build-gdb
+    ../gdb-17.2/configure --target=m68k-elf --program-prefix=m68k-elf- --disable-nls
+    make -j8 && sudo make install
+
+    BlastEm for the GDB stub (debug only, optional):
+    the Homebrew formula is deprecated, upstream macOS builds
+    are Intel-only and need Rosetta, see https://www.retrodev.com/blastem
+
+For quick runs without debugging, OpenEmu is enough:
+
+    /Applications/OpenEmu.app/Contents/MacOS/OpenEmu __ROM_RELEASE__
+
+Then run the VS Code task `SGDK: debug in BlastEm`:
+it rebuilds the debug ROM (__ROM_DEBUG__) and starts m68k-elf-gdb connected
+to BlastEm (`target remote | blastem __ROM_DEBUG__ -D`).
+Set breakpoints before continuing, e.g. `b main`, then `c`.
+
+A `launch.json` attach template (localhost:1234) is included
+for socket-capable GDB stubs.
 """
 
 
@@ -108,8 +151,24 @@ def vscode_cpp_properties(gdk, compiler):
     }
 
 
+def split_out_dirs(gdk):
+    try:
+        with open(os.path.join(gdk, "makefile.gen")) as handle:
+            return "OUT_DIR" in handle.read()
+    except OSError:
+        return False
+
+
+def rom_paths(gdk):
+    if split_out_dirs(gdk):
+        return "out/release/rom.bin", "out/debug/rom.bin"
+    return "out/rom.bin", "out/rom.bin"
+
+
 def vscode_tasks(gdk):
     path_value = gdk + "/bin:/opt/homebrew/bin:${env:PATH}"
+    env = {"GDK": gdk, "PATH": path_value}
+    presentation = {"reveal": "always", "panel": "shared"}
     tasks = []
     for label, target, kind in (
         ("SGDK: build release", "release", {"kind": "build", "isDefault": True}),
@@ -122,16 +181,50 @@ def vscode_tasks(gdk):
                 "type": "shell",
                 "command": "make",
                 "args": ["-f", gdk + "/makefile.gen", target],
-                "options": {
-                    "cwd": "${workspaceFolder}",
-                    "env": {"GDK": gdk, "PATH": path_value},
-                },
+                "options": {"cwd": "${workspaceFolder}", "env": env},
                 "group": kind,
-                "presentation": {"reveal": "always", "panel": "shared"},
+                "presentation": presentation,
                 "problemMatcher": "$gcc",
             }
         )
+    tasks.append(
+        {
+            "label": "SGDK: debug in BlastEm",
+            "type": "shell",
+            "command": "m68k-elf-gdb",
+            "args": [
+                "${workspaceFolder}/" + rom_paths(gdk)[1].replace("rom.bin", "rom.out"),
+                "-ex",
+                "target remote | blastem ${workspaceFolder}/" + rom_paths(gdk)[1] + " -D",
+            ],
+            "options": {"cwd": "${workspaceFolder}", "env": env},
+            "group": "build",
+            "presentation": presentation,
+            "problemMatcher": "$gcc",
+            "dependsOn": "SGDK: build debug",
+        }
+    )
     return {"version": "2.0.0", "tasks": tasks}
+
+
+def vscode_launch(gdk):
+    program = "${workspaceFolder}/" + rom_paths(gdk)[1].replace("rom.bin", "rom.out")
+    return {
+        "version": "0.2.0",
+        "configurations": [
+            {
+                "name": "Debug with gdb remote",
+                "request": "attach",
+                "type": "cppdbg",
+                "program": program,
+                "MIMode": "gdb",
+                "miDebuggerPath": "m68k-elf-gdb",
+                "miDebuggerServerAddress": "localhost:1234",
+                "stopAtEntry": True,
+                "cwd": "${workspaceFolder}",
+            }
+        ],
+    }
 
 
 def write_text(path, text):
@@ -155,7 +248,13 @@ def base_layout(project_dir, name, gdk):
     os.makedirs(os.path.join(project_dir, "res"), exist_ok=True)
     os.makedirs(os.path.join(project_dir, "inc"), exist_ok=True)
     written.append(write_text(os.path.join(project_dir, "src", "main.c"), MAIN_C))
-    readme = README_TEXT.replace("__NAME__", name).replace("__GDK__", gdk)
+    release_rom, debug_rom = rom_paths(gdk)
+    readme = (
+        README_TEXT.replace("__NAME__", name)
+        .replace("__GDK__", gdk)
+        .replace("__ROM_RELEASE__", release_rom)
+        .replace("__ROM_DEBUG__", debug_rom)
+    )
     written.append(write_text(os.path.join(project_dir, "README.md"), readme))
     return written
 
@@ -177,6 +276,9 @@ def create_vscode_project(parent, name, gdk, compiler=""):
     written.append(
         write_json(os.path.join(project_dir, ".vscode", "tasks.json"), vscode_tasks(gdk))
     )
+    written.append(
+        write_json(os.path.join(project_dir, ".vscode", "launch.json"), vscode_launch(gdk))
+    )
     return project_dir, written
 
 
@@ -189,7 +291,12 @@ def create_genio_project(parent, name, gdk):
     written = base_layout(project_dir, name, gdk)
     makefile = MAKEFILE_WRAPPER.replace("__GDK__", gdk)
     written.append(write_text(os.path.join(project_dir, "Makefile"), makefile))
-    yaml_text = GENIO_YAML.replace("__GDK__", gdk)
+    release_rom, debug_rom = rom_paths(gdk)
+    yaml_text = (
+        GENIO_YAML.replace("__GDK__", gdk)
+        .replace("__ROM_RELEASE__", release_rom)
+        .replace("__ROM_DEBUG__", debug_rom)
+    )
     written.append(write_text(os.path.join(project_dir, ".genio.yaml"), yaml_text))
     return project_dir, written
 
