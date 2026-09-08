@@ -23,9 +23,22 @@ def host_cc():
     raise PhaseError("No C compiler found (cc/gcc). Install your system build tools.")
 
 
+def first_existing(candidates, what):
+    for item in candidates:
+        if os.path.isfile(item):
+            return item
+    raise PhaseError("No " + what + " found in " + candidates[0] + ".")
+
+
 def build_bintos(sgdk_dir, emit):
     cc = host_cc()
-    src = os.path.join(sgdk_dir, "tools", "bintos", "src", "bintos.c")
+    src = first_existing(
+        [
+            os.path.join(sgdk_dir, "tools", "bintos", "src", "bintos.c"),
+            os.path.join(sgdk_dir, "tools", "bintos", "bintos.c"),
+        ],
+        "bintos.c",
+    )
     out = os.path.join(sgdk_dir, "bin", "bintos")
     run_cmd([cc, src, "-o", out], sgdk_dir, emit)
     os.chmod(out, 0o755)
@@ -33,7 +46,14 @@ def build_bintos(sgdk_dir, emit):
 
 
 def build_sjasm(sgdk_dir, emit):
-    src_dir = os.path.join(sgdk_dir, "tools", "sjasm", "src")
+    src_dir = first_existing(
+        [
+            os.path.join(sgdk_dir, "tools", "sjasm", "src", "Makefile"),
+            os.path.join(sgdk_dir, "tools", "sjasm", "Makefile"),
+        ],
+        "sjasm Makefile",
+    )
+    src_dir = os.path.dirname(src_dir)
     run_cmd(["make", "-C", src_dir], sgdk_dir, emit)
     built = os.path.join(src_dir, "sjasm")
     target = os.path.join(sgdk_dir, "bin", "sjasm")
@@ -51,7 +71,16 @@ def build_sjasm(sgdk_dir, emit):
 
 
 def build_xgmtool(sgdk_dir, emit):
-    src = os.path.join(sgdk_dir, "tools", "xgmtool", "src")
+    src = os.path.dirname(
+        first_existing(
+            [
+                os.path.join(sgdk_dir, "tools", "xgmtool", "src", "CMakeLists.txt"),
+                os.path.join(sgdk_dir, "tools", "xgmtool", "CMakeLists.txt"),
+            ],
+            "xgmtool CMakeLists.txt",
+        )
+    )
+    emit("xgmtool sources at " + src + ".")
     build_dir = tempfile.mkdtemp(prefix="sgdk-xgmtool-build.")
     try:
         run_cmd(["cmake", "-S", src, "-B", build_dir], sgdk_dir, emit)
@@ -69,7 +98,12 @@ def build_xgmtool(sgdk_dir, emit):
 
 
 def build_convsym(sgdk_dir, emit):
-    src_dir = os.path.join(sgdk_dir, "tools", "convsym")
+    src_dir = os.path.dirname(
+        first_existing(
+            [os.path.join(sgdk_dir, "tools", "convsym", "Makefile")],
+            "convsym Makefile",
+        )
+    )
     run_cmd(["make", "-C", src_dir], sgdk_dir, emit)
     built = os.path.join(src_dir, "build", "convsym")
     target = os.path.join(sgdk_dir, "bin", "convsym")

@@ -4,7 +4,7 @@ import threading
 
 from rich.text import Text
 from textual.app import App, ComposeResult
-from textual.containers import Center, Horizontal, Vertical
+from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import (
     Button,
@@ -19,7 +19,7 @@ from textual.widgets import (
     Static,
 )
 
-from sgdk_setup import download, newproject, system_info
+from sgdk_setup import download, newproject, runner, system_info
 from sgdk_setup.installers import haiku as install_haiku
 from sgdk_setup.installers import linux as install_linux
 from sgdk_setup.installers import macos as install_macos
@@ -40,42 +40,83 @@ def emit_to(log):
 
 
 class MainScreen(Screen):
+    BINDINGS = [
+        ("1", "setup_install", "Install SGDK"),
+        ("2", "setup_create", "Create Project"),
+        ("3", "setup_rescan", "Rescan System"),
+        ("4", "setup_quit", "Quit"),
+    ]
+
     def compose(self):
         yield Header()
         yield Vertical(
             Static("SGDK Setup Manager", id="title"),
             Static(self.app.status_text(), id="status"),
-            Center(Button("Install SGDK", id="install", variant="primary")),
-            Center(Button("Create Project", id="create", variant="success")),
-            Center(Button("Rescan System", id="rescan")),
-            Center(Button("Quit", id="quit")),
+            Static(""),
+            Button("Install SGDK", id="install", variant="primary"),
+            Button("Create Project", id="create", variant="success"),
+            Button("Rescan System", id="rescan"),
+            Button("Quit", id="quit"),
             id="main",
         )
         yield Footer()
 
     def on_mount(self):
         self.refresh_buttons()
+        if not self.query_one("#install", Button).disabled:
+            self.query_one("#install", Button).focus()
+        elif not self.query_one("#create", Button).disabled:
+            self.query_one("#create", Button).focus()
 
     def refresh_buttons(self):
         has_sgdk = self.app.sgdk_dir is not None
         self.query_one("#install", Button).disabled = has_sgdk
         self.query_one("#create", Button).disabled = not has_sgdk
 
+    def do_install(self):
+        if not self.query_one("#install", Button).disabled:
+            self.app.push_screen(RepoScreen())
+
+    def do_create(self):
+        if not self.query_one("#create", Button).disabled:
+            self.app.push_screen(CreateScreen())
+
+    def do_rescan(self):
+        self.app.rescan()
+        self.query_one("#status", Static).update(self.app.status_text())
+        self.refresh_buttons()
+
+    def action_setup_install(self):
+        self.do_install()
+
+    def action_setup_create(self):
+        self.do_create()
+
+    def action_setup_rescan(self):
+        self.do_rescan()
+
+    def action_setup_quit(self):
+        self.app.exit()
+
     def on_button_pressed(self, event):
         pressed = event.button.id
         if pressed == "install":
-            self.app.push_screen(RepoScreen())
+            self.do_install()
         elif pressed == "create":
-            self.app.push_screen(CreateScreen())
+            self.do_create()
         elif pressed == "rescan":
-            self.app.rescan()
-            self.query_one("#status", Static).update(self.app.status_text())
-            self.refresh_buttons()
+            self.do_rescan()
         elif pressed == "quit":
             self.app.exit()
 
 
 class RepoScreen(Screen):
+    BINDINGS = [
+        ("d", "clone_now", "Download"),
+        ("n", "go_next", "Continue"),
+        ("b", "go_back", "Back"),
+    ]
+
     def compose(self):
         yield Header()
         yield Vertical(
@@ -95,15 +136,27 @@ class RepoScreen(Screen):
 
     def on_mount(self):
         self.query_one("#continue", Button).disabled = True
+        self.query_one("#clone", Button).focus()
+
+    def action_clone_now(self):
+        if not self.query_one("#clone", Button).disabled:
+            self.start_clone()
+
+    def action_go_next(self):
+        if not self.query_one("#continue", Button).disabled:
+            self.app.push_screen(InstallScreen())
+
+    def action_go_back(self):
+        self.app.pop_screen()
 
     def on_button_pressed(self, event):
         pressed = event.button.id
         if pressed == "back":
-            self.app.pop_screen()
+            self.action_go_back()
         elif pressed == "continue":
-            self.app.push_screen(InstallScreen())
+            self.action_go_next()
         elif pressed == "clone":
-            self.start_clone()
+            self.action_clone_now()
 
     def start_clone(self):
         url = self.query_one("#url", Input).value.strip()
@@ -135,8 +188,6 @@ class RepoScreen(Screen):
             app.call_from_thread(status.update, "Using existing checkout: " + dest)
         else:
             try:
-                app.call_from_thread(write, Text("Cloning into " + dest + " ..."))
-
                 def emit(line):
                     app.call_from_thread(write, Text(line))
 
@@ -158,6 +209,12 @@ class RepoScreen(Screen):
 
 
 class InstallScreen(Screen):
+    BINDINGS = [
+        ("s", "start_now", "Start Install"),
+        ("c", "make_project", "Create Project"),
+        ("b", "go_back", "Back"),
+    ]
+
     def compose(self):
         yield Header()
         installer = self.app.installer
@@ -167,6 +224,8 @@ class InstallScreen(Screen):
             ProgressBar(total=len(installer.PHASES), show_eta=False, id="bar"),
             RichLog(id="install-log"),
             Static("", id="install-status"),
+            Label("Install to:"),
+            Input(value=os.path.expanduser("~/SGDK"), id="prefix"),
             Horizontal(
                 Button("Start Install", id="start", variant="primary"),
                 Button("Create Project", id="create", variant="success"),
@@ -179,22 +238,36 @@ class InstallScreen(Screen):
     def on_mount(self):
         self.query_one("#create", Button).disabled = True
 
+    def action_start_now(self):
+        if not self.query_one("#start", Button).disabled:
+            self.start_install()
+
+    def action_make_project(self):
+        if not self.query_one("#create", Button).disabled:
+            self.app.push_screen(CreateScreen())
+
+    def action_go_back(self):
+        self.app.pop_screen()
+
     def on_button_pressed(self, event):
         pressed = event.button.id
         if pressed == "back":
-            self.app.pop_screen()
+            self.action_go_back()
         elif pressed == "create":
-            self.app.push_screen(CreateScreen())
+            self.action_make_project()
         elif pressed == "start":
-            self.start_install()
+            self.action_start_now()
 
     def start_install(self):
+        prefix = self.query_one("#prefix", Input).value.strip()
+        if not prefix:
+            prefix = os.path.expanduser("~/SGDK")
         self.query_one("#start", Button).disabled = True
-        thread = threading.Thread(target=self.install_work)
+        thread = threading.Thread(target=self.install_work, args=(prefix,))
         thread.daemon = True
         thread.start()
 
-    def install_work(self):
+    def install_work(self, prefix):
         app = self.app
         installer = app.installer
         log = self.query_one("#install-log", RichLog)
@@ -219,10 +292,19 @@ class InstallScreen(Screen):
                 return
             app.call_from_thread(write, Text(str(result)))
             app.call_from_thread(bar.update, progress=index + 1)
-        found = system_info.find_sgdk(app.os_id)
-        if found:
-            app.sgdk_dir = found
-        app.call_from_thread(status.update, "SGDK installed at " + str(app.sgdk_dir))
+        app.call_from_thread(phase_label.update, "Installing files to " + prefix + " ...")
+        try:
+            runner.install_to_prefix(app.sgdk_dir, prefix, emit)
+            if not system_info.valid_sgdk_dir(prefix):
+                raise runner.PhaseError("Install verification failed at " + prefix + ".")
+            cleanup = runner.remove_sources(app.sgdk_dir, prefix)
+            app.call_from_thread(write, Text(cleanup))
+        except Exception as exc:
+            app.call_from_thread(status.update, "Install step failed: " + str(exc))
+            app.call_from_thread(self.enable_start)
+            return
+        app.sgdk_dir = prefix
+        app.call_from_thread(status.update, "SGDK installed at " + prefix)
         app.call_from_thread(self.enable_create)
 
     def enable_start(self):
@@ -233,6 +315,11 @@ class InstallScreen(Screen):
 
 
 class CreateScreen(Screen):
+    BINDINGS = [
+        ("g", "go_create", "Create"),
+        ("b", "go_back", "Back"),
+    ]
+
     def compose(self):
         yield Header()
         haiku = self.app.os_id == system_info.HAIKU
@@ -241,6 +328,8 @@ class CreateScreen(Screen):
             Static(self.flavor_text(), id="flavor"),
             Label("Project name:"),
             Input(placeholder="hello-world", id="name"),
+            Label("Directory:"),
+            Input(value=os.getcwd(), id="directory"),
             self.flavor_widget(haiku),
             RichLog(id="create-log"),
             Static("", id="create-status"),
@@ -254,8 +343,8 @@ class CreateScreen(Screen):
 
     def flavor_text(self):
         if self.app.os_id == system_info.HAIKU:
-            return "Haiku target: pick Genio or Paladin. Created in the current folder."
-        return "VS Code project with IntelliSense and build tasks. Created in the current folder."
+            return "Haiku target: pick Genio or Paladin. Created in the chosen folder."
+        return "VS Code project with IntelliSense and build tasks. Created in the chosen folder."
 
     def flavor_widget(self, haiku):
         if haiku:
@@ -271,10 +360,20 @@ class CreateScreen(Screen):
             self.query_one("#genio", RadioButton).value = True
         except Exception:
             pass
+        self.query_one("#go", Button).focus()
+
+    def action_go_create(self):
+        self.create_project()
+
+    def action_go_back(self):
+        for _ in range(10):
+            if isinstance(self.app.screen, MainScreen):
+                break
+            self.app.pop_screen()
 
     def on_button_pressed(self, event):
         if event.button.id == "back":
-            self.app.pop_screen()
+            self.action_go_back()
         elif event.button.id == "go":
             self.create_project()
 
@@ -295,7 +394,12 @@ class CreateScreen(Screen):
         if not newproject.valid_name(name):
             status.update("Name must match [A-Za-z0-9_-]+.")
             return
-        parent = os.getcwd()
+        parent = self.query_one("#directory", Input).value.strip() or os.getcwd()
+        try:
+            os.makedirs(parent, exist_ok=True)
+        except OSError as exc:
+            status.update("Bad directory: " + str(exc))
+            return
         try:
             if self.app.os_id == system_info.HAIKU:
                 if self.picked_flavor() == newproject.PALADIN:
@@ -316,6 +420,12 @@ class CreateScreen(Screen):
 
 class SGDKSetupApp(App):
     TITLE = "SGDK Setup Manager"
+
+    CSS = """
+    #main Button {
+        width: 30;
+    }
+    """
 
     def __init__(self):
         super().__init__()
