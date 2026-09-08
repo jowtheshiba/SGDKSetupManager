@@ -64,10 +64,42 @@ def valid_sgdk_dir(path):
     return os.path.isfile(inc) and os.path.isfile(lib)
 
 
+def default_prefix(os_id):
+    if os_id == WINDOWS:
+        return "C:\\SGDK"
+    return os.path.join(os.path.expanduser("~"), "SGDK")
+
+
+def config_file():
+    if platform.system() == "Windows":
+        base = os.environ.get("APPDATA", os.path.expanduser("~"))
+        return os.path.join(base, "sgdk-setup-manager", "install.path")
+    return os.path.join(
+        os.path.expanduser("~"), ".config", "sgdk-setup-manager", "install.path"
+    )
+
+
+def save_install_dir(path):
+    target = config_file()
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    with open(target, "w") as handle:
+        handle.write(os.path.abspath(path) + "\n")
+
+
+def load_install_dir():
+    try:
+        with open(config_file(), "r") as handle:
+            return handle.read().strip()
+    except OSError:
+        return ""
+
+
 def candidate_dirs(os_id):
     home = os.path.expanduser("~")
     dirs = [
         os.environ.get("GDK", ""),
+        load_install_dir(),
+        os.path.join(os.getcwd(), "SGDK"),
         os.path.join(home, "SGDK"),
         os.path.join(home, "sgdk"),
     ]

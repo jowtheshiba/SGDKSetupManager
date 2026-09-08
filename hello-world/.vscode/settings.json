@@ -1,9 +1,0 @@
-{
-    "files.exclude": {
-        "**/*.o": true,
-        "**/*.d": true,
-        "**/*.out": true,
-        "**/cmd_": true,
-        "**/out.lst": true
-    }
-}

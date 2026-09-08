@@ -147,6 +147,7 @@ class RepoScreen(Screen):
             self.app.push_screen(InstallScreen())
 
     def action_go_back(self):
+        self.app.refresh_main()
         self.app.pop_screen()
 
     def on_button_pressed(self, event):
@@ -225,7 +226,7 @@ class InstallScreen(Screen):
             RichLog(id="install-log"),
             Static("", id="install-status"),
             Label("Install to:"),
-            Input(value=os.path.expanduser("~/SGDK"), id="prefix"),
+            Input(value=system_info.default_prefix(self.app.os_id), id="prefix"),
             Horizontal(
                 Button("Start Install", id="start", variant="primary"),
                 Button("Create Project", id="create", variant="success"),
@@ -247,6 +248,7 @@ class InstallScreen(Screen):
             self.app.push_screen(CreateScreen())
 
     def action_go_back(self):
+        self.app.refresh_main()
         self.app.pop_screen()
 
     def on_button_pressed(self, event):
@@ -261,7 +263,7 @@ class InstallScreen(Screen):
     def start_install(self):
         prefix = self.query_one("#prefix", Input).value.strip()
         if not prefix:
-            prefix = os.path.expanduser("~/SGDK")
+            prefix = system_info.default_prefix(self.app.os_id)
         self.query_one("#start", Button).disabled = True
         thread = threading.Thread(target=self.install_work, args=(prefix,))
         thread.daemon = True
@@ -299,6 +301,7 @@ class InstallScreen(Screen):
                 raise runner.PhaseError("Install verification failed at " + prefix + ".")
             cleanup = runner.remove_sources(app.sgdk_dir, prefix)
             app.call_from_thread(write, Text(cleanup))
+            system_info.save_install_dir(prefix)
         except Exception as exc:
             app.call_from_thread(status.update, "Install step failed: " + str(exc))
             app.call_from_thread(self.enable_start)
@@ -330,6 +333,8 @@ class CreateScreen(Screen):
             Input(placeholder="hello-world", id="name"),
             Label("Directory:"),
             Input(value=os.getcwd(), id="directory"),
+            Label("SGDK location:"),
+            Input(value=self.app.sgdk_dir or "", id="gdk"),
             self.flavor_widget(haiku),
             RichLog(id="create-log"),
             Static("", id="create-status"),
@@ -366,6 +371,7 @@ class CreateScreen(Screen):
         self.create_project()
 
     def action_go_back(self):
+        self.app.refresh_main()
         for _ in range(10):
             if isinstance(self.app.screen, MainScreen):
                 break
@@ -400,15 +406,21 @@ class CreateScreen(Screen):
         except OSError as exc:
             status.update("Bad directory: " + str(exc))
             return
+        gdk = self.query_one("#gdk", Input).value.strip() or self.app.sgdk_dir
+        if not system_info.valid_sgdk_dir(gdk):
+            status.update("Not a valid SGDK install: " + str(gdk))
+            return
+        self.app.sgdk_dir = gdk
+        system_info.save_install_dir(gdk)
         try:
             if self.app.os_id == system_info.HAIKU:
                 if self.picked_flavor() == newproject.PALADIN:
-                    path, files = newproject.create_paladin_project(parent, name, self.app.sgdk_dir)
+                    path, files = newproject.create_paladin_project(parent, name, gdk)
                 else:
-                    path, files = newproject.create_genio_project(parent, name, self.app.sgdk_dir)
+                    path, files = newproject.create_genio_project(parent, name, gdk)
             else:
                 compiler = shutil.which("m68k-elf-gcc") or ""
-                path, files = newproject.create_vscode_project(parent, name, self.app.sgdk_dir, compiler)
+                path, files = newproject.create_vscode_project(parent, name, gdk, compiler)
         except (ValueError, FileExistsError, OSError) as exc:
             status.update("Failed: " + str(exc))
             return
@@ -453,6 +465,13 @@ class SGDKSetupApp(App):
     def rescan(self):
         self.git_ok = system_info.git_available()
         self.sgdk_dir = system_info.find_sgdk(self.os_id)
+
+    def refresh_main(self):
+        self.rescan()
+        for screen in self.screen_stack:
+            if isinstance(screen, MainScreen):
+                screen.query_one("#status", Static).update(self.status_text())
+                screen.refresh_buttons()
 
     def on_mount(self):
         self.push_screen(MainScreen())
