@@ -28,3 +28,7 @@ installs dependencies there and opens the assistant.
    it works as a project creator in the folder you choose:
    VS Code project on Linux/macOS/Windows,
    Genio or Paladin project on Haiku.
+5. Optionally, with SGDK installed, the Install BlastEm menu
+   builds the latest libretro/blastem (with GDB fixes) into
+   the SGDK folder. A manual build script plus patches live
+   in blastem/.

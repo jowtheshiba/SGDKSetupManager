@@ -108,9 +108,14 @@ Prerequisites (one time, debug only):
     ../gdb-17.2/configure --target=m68k-elf --program-prefix=m68k-elf- --disable-nls
     make -j8 && sudo make install
 
-    BlastEm for the GDB stub (debug only, optional):
+    BlastEm for the GDB stub (debug only):
     the Homebrew formula is deprecated, upstream macOS builds
-    are Intel-only and need Rosetta, see https://www.retrodev.com/blastem
+    are Intel-only and need Rosetta. On Apple Silicon build
+    https://github.com/libretro/blastem natively (the x86 JIT
+    is skipped automatically, generated cores are used instead),
+    answer unknown RSP packets with an empty reply in gdb_remote.c
+    and silence the font_mac.m stdout prints in -D mode,
+    then put the resulting `blastem` on PATH.
 
 For quick runs without debugging, OpenEmu is enough:
 

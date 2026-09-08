@@ -19,7 +19,7 @@ from textual.widgets import (
     Static,
 )
 
-from sgdk_setup import download, newproject, runner, system_info
+from sgdk_setup import blastem, download, newproject, runner, system_info
 from sgdk_setup.installers import haiku as install_haiku
 from sgdk_setup.installers import linux as install_linux
 from sgdk_setup.installers import macos as install_macos
@@ -45,6 +45,7 @@ class MainScreen(Screen):
         ("2", "setup_create", "Create Project"),
         ("3", "setup_rescan", "Rescan System"),
         ("4", "setup_quit", "Quit"),
+        ("5", "setup_blastem", "Install BlastEm"),
     ]
 
     def compose(self):
@@ -55,6 +56,7 @@ class MainScreen(Screen):
             Static(""),
             Button("Install SGDK", id="install", variant="primary"),
             Button("Create Project", id="create", variant="success"),
+            Button("Install BlastEm", id="blastem"),
             Button("Rescan System", id="rescan"),
             Button("Quit", id="quit"),
             id="main",
@@ -72,6 +74,7 @@ class MainScreen(Screen):
         has_sgdk = self.app.sgdk_dir is not None
         self.query_one("#install", Button).disabled = has_sgdk
         self.query_one("#create", Button).disabled = not has_sgdk
+        self.query_one("#blastem", Button).disabled = not has_sgdk
 
     def do_install(self):
         if not self.query_one("#install", Button).disabled:
@@ -86,6 +89,10 @@ class MainScreen(Screen):
         self.query_one("#status", Static).update(self.app.status_text())
         self.refresh_buttons()
 
+    def do_blastem(self):
+        if not self.query_one("#blastem", Button).disabled:
+            self.app.push_screen(BlastEmScreen())
+
     def action_setup_install(self):
         self.do_install()
 
@@ -98,12 +105,17 @@ class MainScreen(Screen):
     def action_setup_quit(self):
         self.app.exit()
 
+    def action_setup_blastem(self):
+        self.do_blastem()
+
     def on_button_pressed(self, event):
         pressed = event.button.id
         if pressed == "install":
             self.do_install()
         elif pressed == "create":
             self.do_create()
+        elif pressed == "blastem":
+            self.do_blastem()
         elif pressed == "rescan":
             self.do_rescan()
         elif pressed == "quit":
@@ -317,6 +329,96 @@ class InstallScreen(Screen):
         self.query_one("#create", Button).disabled = False
 
 
+class BlastEmScreen(Screen):
+    BINDINGS = [
+        ("s", "start_now", "Start Install"),
+        ("b", "go_back", "Back"),
+    ]
+
+    def compose(self):
+        yield Header()
+        supported = self.app.os_id != system_info.WINDOWS
+        if supported:
+            info = (
+                "Builds the latest libretro/blastem with GDB fixes into "
+                + blastem.install_dir(self.app.sgdk_dir or "")
+                + "."
+            )
+        else:
+            info = "Source builds are not supported on Windows. Use a prebuilt binary."
+        yield Vertical(
+            Static("Install BlastEm (optional)", id="title"),
+            Static(info),
+            Static("", id="phase"),
+            ProgressBar(total=len(blastem.PHASES), show_eta=False, id="bar"),
+            RichLog(id="blastem-log"),
+            Static("", id="blastem-status"),
+            Horizontal(
+                Button("Start Install", id="start", variant="primary", disabled=not supported),
+                Button("Back", id="back"),
+            ),
+            id="blastem",
+        )
+        yield Footer()
+
+    def on_mount(self):
+        self.query_one("#start", Button).focus()
+
+    def action_start_now(self):
+        if not self.query_one("#start", Button).disabled:
+            self.start_install()
+
+    def action_go_back(self):
+        self.app.refresh_main()
+        self.app.pop_screen()
+
+    def on_button_pressed(self, event):
+        if event.button.id == "back":
+            self.action_go_back()
+        elif event.button.id == "start":
+            self.action_start_now()
+
+    def start_install(self):
+        self.query_one("#start", Button).disabled = True
+        thread = threading.Thread(target=self.install_work)
+        thread.daemon = True
+        thread.start()
+
+    def install_work(self):
+        app = self.app
+        log = self.query_one("#blastem-log", RichLog)
+        phase_label = self.query_one("#phase", Static)
+        status = self.query_one("#blastem-status", Static)
+        bar = self.query_one("#bar", ProgressBar)
+        write = emit_to(log)
+        total = len(blastem.PHASES)
+        try:
+            for index, phase in enumerate(blastem.PHASES):
+                title = phase[0]
+                app.call_from_thread(
+                    phase_label.update,
+                    "Phase " + str(index + 1) + "/" + str(total) + ": " + title,
+                )
+                app.call_from_thread(write, Text("Phase " + str(index + 1) + "/" + str(total) + ": " + title))
+
+                def emit(line, app=app, write=write):
+                    app.call_from_thread(write, Text(line))
+
+                result = blastem.run_phase(index, app.os_id, app.sgdk_dir, emit)
+                app.call_from_thread(write, Text(str(result)))
+                app.call_from_thread(bar.update, progress=index + 1)
+        except Exception as exc:
+            blastem.cleanup_work()
+            app.call_from_thread(status.update, "Failed: " + str(exc))
+            app.call_from_thread(self.enable_start)
+            return
+        app.call_from_thread(status.update, "BlastEm installed.")
+        app.call_from_thread(self.enable_start)
+
+    def enable_start(self):
+        self.query_one("#start", Button).disabled = False
+
+
 class CreateScreen(Screen):
     BINDINGS = [
         ("g", "go_create", "Create"),
@@ -455,6 +557,13 @@ class SGDKSetupApp(App):
         if self.sgdk_dir:
             lines.append("SGDK: installed at " + self.sgdk_dir)
             lines.append("This manager now works as a project creator.")
+            if blastem.is_installed(self.sgdk_dir, self.os_id):
+                lines.append("BlastEm: installed at " + blastem.install_dir(self.sgdk_dir))
+            else:
+                lines.append("BlastEm: not installed (optional)")
+            lines.append(
+                "m68k-elf-gdb: " + ("found" if blastem.gdb_available() else "NOT FOUND")
+            )
         else:
             lines.append("SGDK: not installed")
             lines.append("Choose Install SGDK to download, build and install it.")

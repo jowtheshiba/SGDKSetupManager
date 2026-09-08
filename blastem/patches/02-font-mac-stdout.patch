@@ -1,0 +1,54 @@
+diff --git a/nuklear_ui/font_mac.m b/nuklear_ui/font_mac.m
+index 9af938f..31e4f4b 100644
+--- a/nuklear_ui/font_mac.m
++++ b/nuklear_ui/font_mac.m
+@@ -15,7 +15,9 @@ static sfnt_table *find_font_in_dir(char *path, char *prefix, const char *ps_nam
+ 		char *ext = path_extension(entries[i].name);
+ 		if (!ext || (strcasecmp(ext, "ttf") && strcasecmp(ext, "ttc") && strcasecmp(ext, "dfont"))) {
+ 			//not a truetype font, ignore
+-			printf("Skipping %s because of its extension\n", entries[i].name);
++			if (is_stdout_enabled()) {
++				printf("Skipping %s because of its extension\n", entries[i].name);
++			}
+ 			free(ext);
+ 			continue;
+ 		}
+@@ -31,18 +33,24 @@ static sfnt_table *find_font_in_dir(char *path, char *prefix, const char *ps_nam
+ 				{
+ 					sfnt_container *sfnt = load_sfnt(blob, font_size);
+ 					if (sfnt) {
+-						printf("Examining font file %s\n", entries[i].name);
++						if (is_stdout_enabled()) {
++							printf("Examining font file %s\n", entries[i].name);
++						}
+ 						for (uint8_t j = 0; j < sfnt->num_fonts && !selected; j++)
+ 						{
+ 							char *cur_ps = sfnt_name(sfnt->tables + j, SFNT_POSTSCRIPT);
+-							printf("\t%s\n", cur_ps);
++							if (is_stdout_enabled()) {
++								printf("\t%s\n", cur_ps);
++							}
+ 							if (!strcmp(cur_ps, ps_name)) {
+ 								selected = sfnt->tables + j;
+ 							}
+ 							free(cur_ps);
+ 						}
+ 					} else {
+-						printf("Failed to load %s as sfnt containern\n", entries[i].name);
++						if (is_stdout_enabled()) {
++							printf("Failed to load %s as sfnt containern\n", entries[i].name);
++						}
+ 						free(blob);
+ 					}
+ 				} else {
+@@ -87,7 +95,9 @@ static sfnt_table *find_font_by_ps_name(const char*ps_name, uint8_t exhaustive)
+ 	}
+ 	if (exhaustive) {
+ 		if (!selected) {
+-			puts("Check using prefix failed, exhaustively checking fonts");
++			if (is_stdout_enabled()) {
++				puts("Check using prefix failed, exhaustively checking fonts");
++			}
+ 			selected = find_font_in_dir("/Library/Fonts", NULL, ps_name);
+ 		}
+ 		if (!selected) {

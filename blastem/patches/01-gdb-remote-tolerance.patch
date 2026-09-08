@@ -1,0 +1,22 @@
+diff --git a/gdb_remote.c b/gdb_remote.c
+index 8256c96..d530d25 100644
+--- a/gdb_remote.c
++++ b/gdb_remote.c
+@@ -493,13 +493,16 @@ void gdb_run_command(m68k_context * context, uint32_t pc, char * command)
+ 	case '?':
+ 		gdb_send_command("S05");
+ 		break;
++	case 'Q':
++		gdb_send_command("");
++		break;
+ 	default:
+ 		goto not_impl;
+ 
+ 	}
+ 	return;
+ not_impl:
+-	fatal_error("Command %s is not implemented, exiting...\n", command);
++	gdb_send_command("");
+ }
+ 
+ void  gdb_debug_enter(void *vcontext, uint32_t pc)
