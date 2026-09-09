@@ -170,6 +170,16 @@ def rom_paths(gdk):
     return "out/rom.bin", "out/rom.bin"
 
 
+def blastem_resolve(gdk):
+    return (
+        "B=\"" + gdk + "/blastem/blastem\"; "
+        "[ -x \"$B\" ] || B=$(command -v blastem); "
+        "L=$(readlink \"$B\" 2>/dev/null) || L=\"$B\"; "
+        "case \"$L\" in /*) B=\"$L\";; *) B=\"$(dirname \"$B\")/$L\";; esac; "
+        "cd \"$(dirname \"$B\")\""
+    )
+
+
 def vscode_tasks(gdk):
     path_value = gdk + "/bin:/opt/homebrew/bin:${env:PATH}"
     env = {"GDK": gdk, "PATH": path_value}
@@ -196,17 +206,37 @@ def vscode_tasks(gdk):
         {
             "label": "SGDK: debug in BlastEm",
             "type": "shell",
-            "command": "m68k-elf-gdb",
+            "command": "sh",
             "args": [
-                "${workspaceFolder}/" + rom_paths(gdk)[1].replace("rom.bin", "rom.out"),
-                "-ex",
-                "target remote | blastem ${workspaceFolder}/" + rom_paths(gdk)[1] + " -D",
+                "-c",
+                blastem_resolve(gdk)
+                + " && exec m68k-elf-gdb -q \"${workspaceFolder}/"
+                + rom_paths(gdk)[1].replace("rom.bin", "rom.out")
+                + "\" -ex \"set pagination off\" -ex \"target remote | "
+                + "./blastem ${workspaceFolder}/" + rom_paths(gdk)[1] + " -D\"",
             ],
             "options": {"cwd": "${workspaceFolder}", "env": env},
             "group": "build",
             "presentation": presentation,
             "problemMatcher": "$gcc",
             "dependsOn": "SGDK: build debug",
+        }
+    )
+    rom_release = rom_paths(gdk)[0]
+    tasks.append(
+        {
+            "label": "SGDK: run in BlastEm",
+            "type": "shell",
+            "command": "sh",
+            "args": [
+                "-c",
+                blastem_resolve(gdk)
+                + " && exec ./blastem \"${workspaceFolder}/" + rom_release + "\"",
+            ],
+            "options": {"cwd": "${workspaceFolder}", "env": env},
+            "group": "none",
+            "presentation": presentation,
+            "dependsOn": "SGDK: build release",
         }
     )
     return {"version": "2.0.0", "tasks": tasks}

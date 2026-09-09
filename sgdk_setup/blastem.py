@@ -244,6 +244,13 @@ def install(os_id, gdk, emit):
     emit("Copied to " + dest + ".")
     if os_id != system_info.WINDOWS:
         os.chmod(binary_path(gdk, os_id), 0o755)
+    user_cfg = os.path.join(os.path.expanduser("~"), ".config", "blastem", "blastem.cfg")
+    if not os.path.isfile(user_cfg):
+        default_cfg = os.path.join(dest, "default.cfg")
+        if os.path.isfile(default_cfg):
+            os.makedirs(os.path.dirname(user_cfg), exist_ok=True)
+            shutil.copy2(default_cfg, user_cfg)
+            emit("Installed default BlastEm config.")
     return "Installed to " + dest + "."
 
 
