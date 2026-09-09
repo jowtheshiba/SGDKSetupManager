@@ -180,7 +180,7 @@ def blastem_resolve(gdk):
     )
 
 
-def vscode_tasks(gdk):
+def vscode_tasks(gdk, openemu=False):
     path_value = gdk + "/bin:/opt/homebrew/bin:${env:PATH}"
     env = {"GDK": gdk, "PATH": path_value}
     presentation = {"reveal": "always", "panel": "shared"}
@@ -223,15 +223,31 @@ def vscode_tasks(gdk):
         }
     )
     rom_release = rom_paths(gdk)[0]
+    run_cmd = (
+        blastem_resolve(gdk)
+        + " && exec ./blastem \"${workspaceFolder}/" + rom_release + "\""
+    )
     tasks.append(
         {
             "label": "SGDK: run in BlastEm",
             "type": "shell",
             "command": "sh",
+            "args": ["-c", run_cmd],
+            "options": {"cwd": "${workspaceFolder}", "env": env},
+            "group": "none",
+            "presentation": presentation,
+            "dependsOn": "SGDK: build release",
+        }
+    )
+    tasks.append(
+        {
+            "label": "SGDK: run in BlastEm (no Z80)",
+            "type": "shell",
+            "command": "sh",
             "args": [
                 "-c",
                 blastem_resolve(gdk)
-                + " && exec ./blastem \"${workspaceFolder}/" + rom_release + "\"",
+                + " && exec ./blastem -n \"${workspaceFolder}/" + rom_release + "\"",
             ],
             "options": {"cwd": "${workspaceFolder}", "env": env},
             "group": "none",
@@ -239,6 +255,19 @@ def vscode_tasks(gdk):
             "dependsOn": "SGDK: build release",
         }
     )
+    if openemu:
+        tasks.append(
+            {
+                "label": "SGDK: run in OpenEmu",
+                "type": "shell",
+                "command": "/Applications/OpenEmu.app/Contents/MacOS/OpenEmu",
+                "args": ["${workspaceFolder}/" + rom_release],
+                "options": {"cwd": "${workspaceFolder}", "env": env},
+                "group": "none",
+                "presentation": presentation,
+                "dependsOn": "SGDK: build release",
+            }
+        )
     return {"version": "2.0.0", "tasks": tasks}
 
 
@@ -294,7 +323,7 @@ def base_layout(project_dir, name, gdk):
     return written
 
 
-def create_vscode_project(parent, name, gdk, compiler=""):
+def create_vscode_project(parent, name, gdk, compiler="", openemu=False):
     if not valid_name(name):
         raise ValueError("Project name must match [A-Za-z0-9_-]+.")
     project_dir = os.path.join(parent, name)
@@ -309,7 +338,10 @@ def create_vscode_project(parent, name, gdk, compiler=""):
         )
     )
     written.append(
-        write_json(os.path.join(project_dir, ".vscode", "tasks.json"), vscode_tasks(gdk))
+        write_json(
+            os.path.join(project_dir, ".vscode", "tasks.json"),
+            vscode_tasks(gdk, openemu),
+        )
     )
     written.append(
         write_json(os.path.join(project_dir, ".vscode", "launch.json"), vscode_launch(gdk))

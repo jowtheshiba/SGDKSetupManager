@@ -1,0 +1,14 @@
+diff --git a/vdp.c b/vdp.c
+index 91edce3..c546d86 100644
+--- a/vdp.c
++++ b/vdp.c
+@@ -6189,8 +6189,7 @@ uint16_t vdp_data_port_read(vdp_context * context, uint32_t *cpu_cycle, uint32_t
+ 	case VRAM_READ8:
+ 		break;
+ 	default:
+-		warning("Read from VDP data port with invalid source, CPU is now frozen. VDP Address: %X, CD: %X\n", context->address, context->cd);
+-		context->system->enter_debugger = 1;
++		warning("Read from VDP data port with invalid source, VDP Address: %X, CD: %X\n", context->address, context->cd);
+ 		return context->prefetch;
+ 	}
+ 	uint32_t starting_cycle = context->cycles;

@@ -522,7 +522,13 @@ class CreateScreen(Screen):
                     path, files = newproject.create_genio_project(parent, name, gdk)
             else:
                 compiler = shutil.which("m68k-elf-gcc") or ""
-                path, files = newproject.create_vscode_project(parent, name, gdk, compiler)
+                path, files = newproject.create_vscode_project(
+                    parent,
+                    name,
+                    gdk,
+                    compiler,
+                    self.app.os_id == system_info.MACOS,
+                )
         except (ValueError, FileExistsError, OSError) as exc:
             status.update("Failed: " + str(exc))
             return

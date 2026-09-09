@@ -12,6 +12,7 @@ echo "Commit: $(git -C "$WORK/src" rev-parse --short HEAD)"
 echo "Applying patches ..."
 patch -N -p1 -d "$WORK/src" -i "$HERE/patches/01-gdb-remote-tolerance.patch"
 patch -N -p1 -d "$WORK/src" -i "$HERE/patches/02-font-mac-stdout.patch"
+patch -N -p1 -d "$WORK/src" -i "$HERE/patches/03-vdp-read-no-debugger.patch"
 
 echo "Checking dependencies ..."
 for tool in cc make patch pkg-config; do

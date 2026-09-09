@@ -10,6 +10,7 @@ REPO = "https://github.com/libretro/blastem"
 PATCH_FILES = (
     "01-gdb-remote-tolerance.patch",
     "02-font-mac-stdout.patch",
+    "03-vdp-read-no-debugger.patch",
 )
 
 PHASES = [
@@ -251,6 +252,21 @@ def install(os_id, gdk, emit):
             os.makedirs(os.path.dirname(user_cfg), exist_ok=True)
             shutil.copy2(default_cfg, user_cfg)
             emit("Installed default BlastEm config.")
+    try:
+        with open(user_cfg, "r") as handle:
+            cfg_text = handle.read()
+        if "machine_freeze_action" not in cfg_text:
+            if "ui {" in cfg_text:
+                cfg_text = cfg_text.replace(
+                    "ui {", "ui {\n\tmachine_freeze_action ignore", 1
+                )
+            else:
+                cfg_text += "\nui {\n\tmachine_freeze_action ignore\n}\n"
+            with open(user_cfg, "w") as handle:
+                handle.write(cfg_text)
+            emit("Disabled hardware lockup prompts.")
+    except OSError as exc:
+        raise PhaseError("Cannot update BlastEm config: " + str(exc) + ".")
     return "Installed to " + dest + "."
 
 
