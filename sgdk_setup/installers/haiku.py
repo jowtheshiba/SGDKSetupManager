@@ -2,7 +2,8 @@ from sgdk_setup import posix
 
 TOOLCHAIN_HINT = (
     "Install a m68k-elf-gcc cross toolchain with pkgman "
-    "(or build from source), plus OpenJDK and CMake."
+    "or build it with toolchain/m68k-toolchain.sh, "
+    "plus OpenJDK and CMake."
 )
 
 PHASES = [

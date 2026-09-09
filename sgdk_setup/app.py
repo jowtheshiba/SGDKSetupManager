@@ -528,6 +528,7 @@ class CreateScreen(Screen):
                     gdk,
                     compiler,
                     self.app.os_id == system_info.MACOS,
+                    self.app.os_id == system_info.LINUX,
                 )
         except (ValueError, FileExistsError, OSError) as exc:
             status.update("Failed: " + str(exc))

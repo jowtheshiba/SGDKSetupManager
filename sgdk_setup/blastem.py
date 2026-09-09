@@ -202,7 +202,9 @@ def check_deps(os_id, emit):
                 "Missing libraries: "
                 + ", ".join(missing)
                 + ". Install them, e.g. "
-                "sudo apt install libsdl2-dev libglew-dev pkg-config."
+                "sudo apt install libsdl2-dev libglew-dev pkg-config "
+                "(Debian/Ubuntu) or sudo dnf install SDL2-devel glew-devel pkgconf-pkg-config "
+                "(Fedora) or equivalent for your distro."
             )
     elif os_id == system_info.HAIKU:
         missing = [p for p in ("sdl2", "glew") if not pkg_exists(p)]

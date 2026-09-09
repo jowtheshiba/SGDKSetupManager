@@ -2,7 +2,8 @@ from sgdk_setup import posix
 
 TOOLCHAIN_HINT = (
     "Install the m68k-elf toolchain with Homebrew "
-    "(brew install m68k-elf-gcc), plus openjdk and cmake."
+    "(brew install m68k-elf-gcc) or build it with "
+    "toolchain/m68k-toolchain.sh, plus openjdk and cmake."
 )
 
 PHASES = [

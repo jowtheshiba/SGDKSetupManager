@@ -1,8 +1,9 @@
 from sgdk_setup import posix
 
 TOOLCHAIN_HINT = (
-    "Install a m68k-elf-gcc cross toolchain (distro package, MarsDev, "
-    "or build from source), plus a JRE, CMake and build-essential tools."
+    "Install a m68k-elf-gcc cross toolchain "
+    "(build it with toolchain/m68k-toolchain.sh), "
+    "plus a JRE, CMake and build-essential tools."
 )
 
 PHASES = [

@@ -180,8 +180,10 @@ def blastem_resolve(gdk):
     )
 
 
-def vscode_tasks(gdk, openemu=False):
-    path_value = gdk + "/bin:/opt/homebrew/bin:${env:PATH}"
+def vscode_tasks(gdk, openemu=False, retroarch=False):
+    path_value = (
+        gdk + "/bin:${env:HOME}/m68k-elf/bin:/opt/homebrew/bin:${env:PATH}"
+    )
     env = {"GDK": gdk, "PATH": path_value}
     presentation = {"reveal": "always", "panel": "shared"}
     tasks = []
@@ -268,6 +270,31 @@ def vscode_tasks(gdk, openemu=False):
                 "dependsOn": "SGDK: build release",
             }
         )
+    if retroarch:
+        tasks.append(
+            {
+                "label": "SGDK: run in RetroArch",
+                "type": "shell",
+                "command": "sh",
+                "args": [
+                    "-c",
+                    "C=\"$HOME/.config/retroarch/cores/genesis_plus_gx_libretro.so\"; "
+                    "[ -f \"$C\" ] || C=\"$HOME/.var/app/org.libretro.RetroArch/config/retroarch/cores/genesis_plus_gx_libretro.so\"; "
+                    "[ -f \"$C\" ] || C=/usr/lib64/libretro/genesis_plus_gx_libretro.so; "
+                    "[ -f \"$C\" ] || C=/usr/lib/libretro/genesis_plus_gx_libretro.so; "
+                    "R=$(command -v retroarch); "
+                    "if [ -n \"$R\" ]; then exec \"$R\" -L \"$C\" \"${workspaceFolder}/"
+                    + rom_release
+                    + "\"; else exec flatpak run org.libretro.RetroArch -L \"$C\" \"${workspaceFolder}/"
+                    + rom_release
+                    + "\"; fi",
+                ],
+                "options": {"cwd": "${workspaceFolder}", "env": env},
+                "group": "none",
+                "presentation": presentation,
+                "dependsOn": "SGDK: build release",
+            }
+        )
     return {"version": "2.0.0", "tasks": tasks}
 
 
@@ -323,7 +350,7 @@ def base_layout(project_dir, name, gdk):
     return written
 
 
-def create_vscode_project(parent, name, gdk, compiler="", openemu=False):
+def create_vscode_project(parent, name, gdk, compiler="", openemu=False, retroarch=False):
     if not valid_name(name):
         raise ValueError("Project name must match [A-Za-z0-9_-]+.")
     project_dir = os.path.join(parent, name)
@@ -340,7 +367,7 @@ def create_vscode_project(parent, name, gdk, compiler="", openemu=False):
     written.append(
         write_json(
             os.path.join(project_dir, ".vscode", "tasks.json"),
-            vscode_tasks(gdk, openemu),
+            vscode_tasks(gdk, openemu, retroarch),
         )
     )
     written.append(
