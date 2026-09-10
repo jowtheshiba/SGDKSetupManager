@@ -13,8 +13,6 @@ from textual.widgets import (
     Input,
     Label,
     ProgressBar,
-    RadioButton,
-    RadioSet,
     RichLog,
     Static,
 )
@@ -427,7 +425,6 @@ class CreateScreen(Screen):
 
     def compose(self):
         yield Header()
-        haiku = self.app.os_id == system_info.HAIKU
         yield Vertical(
             Static("Create Project", id="title"),
             Static(self.flavor_text(), id="flavor"),
@@ -437,7 +434,7 @@ class CreateScreen(Screen):
             Input(value=os.getcwd(), id="directory"),
             Label("SGDK location:"),
             Input(value=self.app.sgdk_dir or "", id="gdk"),
-            self.flavor_widget(haiku),
+            Static(self.template_text(), id="flavor-pick"),
             RichLog(id="create-log"),
             Static("", id="create-status"),
             Horizontal(
@@ -450,23 +447,15 @@ class CreateScreen(Screen):
 
     def flavor_text(self):
         if self.app.os_id == system_info.HAIKU:
-            return "Haiku target: pick Genio or Paladin. Created in the chosen folder."
+            return "Genio project with Makefile build. Created in the chosen folder."
         return "VS Code project with IntelliSense and build tasks. Created in the chosen folder."
 
-    def flavor_widget(self, haiku):
-        if haiku:
-            return RadioSet(
-                RadioButton("Genio", id="genio"),
-                RadioButton("Paladin", id="paladin"),
-                id="flavor-pick",
-            )
-        return Static("Template: Visual Studio Code", id="flavor-pick")
+    def template_text(self):
+        if self.app.os_id == system_info.HAIKU:
+            return "Template: Genio"
+        return "Template: Visual Studio Code"
 
     def on_mount(self):
-        try:
-            self.query_one("#genio", RadioButton).value = True
-        except Exception:
-            pass
         self.query_one("#go", Button).focus()
 
     def action_go_create(self):
@@ -484,15 +473,6 @@ class CreateScreen(Screen):
             self.action_go_back()
         elif event.button.id == "go":
             self.create_project()
-
-    def picked_flavor(self):
-        try:
-            picked = self.query_one("#flavor-pick", RadioSet).pressed_button
-            if picked is not None and picked.id == "paladin":
-                return newproject.PALADIN
-        except Exception:
-            pass
-        return newproject.GENIO
 
     def create_project(self):
         name = self.query_one("#name", Input).value.strip()
@@ -516,10 +496,7 @@ class CreateScreen(Screen):
         system_info.save_install_dir(gdk)
         try:
             if self.app.os_id == system_info.HAIKU:
-                if self.picked_flavor() == newproject.PALADIN:
-                    path, files = newproject.create_paladin_project(parent, name, gdk)
-                else:
-                    path, files = newproject.create_genio_project(parent, name, gdk)
+                path, files = newproject.create_genio_project(parent, name, gdk)
             else:
                 compiler = shutil.which("m68k-elf-gcc") or ""
                 path, files = newproject.create_vscode_project(

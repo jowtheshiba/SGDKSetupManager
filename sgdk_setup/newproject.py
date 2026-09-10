@@ -2,9 +2,6 @@ import json
 import os
 import re
 
-GENIO = "genio"
-PALADIN = "paladin"
-
 MAIN_C = """#include <genesis.h>
 
 int main(bool hardReset)
@@ -280,19 +277,6 @@ project_debug_clean_command: make clean
 project_debug_execute_args: ""
 project_debug_target: __ROM_DEBUG__
 project_run_in_terminal: false
-"""
-
-PALADIN_PLD = """NAME=__NAME__
-TARGETNAME=__NAME__
-PLATFORM=HaikuGCC4
-SCM=git
-GROUP=Source files
-EXPANDGROUP=yes
-SOURCEFILE=src/main.c
-LOCALINCLUDE=inc
-LOCALINCLUDE=__GDK__/inc
-LOCALINCLUDE=__GDK__/res
-CCEXTRA=-m68000 -DSGDK_GCC
 """
 
 README_TEXT = """# __NAME__ (SGDK hello-world)
@@ -668,25 +652,4 @@ def create_genio_project(parent, name, gdk):
             genio_compile_commands(project_dir, gdk),
         )
     )
-    return project_dir, written
-
-
-def create_paladin_project(parent, name, gdk):
-    if not valid_name(name):
-        raise ValueError("Project name must match [A-Za-z0-9_-]+.")
-    project_dir = os.path.join(parent, name)
-    if os.path.exists(project_dir):
-        raise FileExistsError("Destination already exists: " + project_dir)
-    written = base_layout(project_dir, name, gdk)
-    release_out, debug_out = rom_paths(gdk)
-    release_out = release_out.rsplit("/rom.bin", 1)[0]
-    debug_out = debug_out.rsplit("/rom.bin", 1)[0]
-    makefile = (
-        MAKEFILE_WRAPPER.replace("__GDK__", gdk)
-        .replace("__OUT_RELEASE__", release_out)
-        .replace("__OUT_DEBUG__", debug_out)
-    )
-    written.append(write_text(os.path.join(project_dir, "Makefile"), makefile))
-    pld = PALADIN_PLD.replace("__NAME__", name).replace("__GDK__", gdk)
-    written.append(write_text(os.path.join(project_dir, name + ".pld"), pld))
     return project_dir, written
