@@ -43,3 +43,14 @@ Build (native tools, libmd, test ROM): macOS arm64, Linux aarch64 (Fedora 44).
 Debug via GDB + BlastEm: works on macOS arm64 with reservations
 (native BlastEm build with bundled GDB-stub fixes, Z80 core issues
 work around with the no-Z80 run task). Other systems not tested.
+
+## Haiku linker note
+
+On Haiku, linking through the `m68k-elf-gcc` driver fails:
+its `collect2` helper cannot find system libraries
+(`libiconv.so.2` and friends) even though they exist, while the
+same binaries work when started directly. The generated project
+Makefile therefore links with `m68k-elf-ld` directly on Haiku
+(detected via `uname`) and keeps the stock driver link everywhere
+else. Debug builds keep working: `rom.out` + `symbol.txt` are
+still produced, only cross-module LTO is skipped on Haiku.

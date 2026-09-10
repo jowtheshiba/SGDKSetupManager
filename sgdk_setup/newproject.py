@@ -32,26 +32,251 @@ VSCODE_SETTINGS = {
 
 MAKEFILE_WRAPPER = """GDK ?= __GDK__
 
+BIN := $(GDK)/bin
+LIB := $(GDK)/lib
+SRC_LIB := $(GDK)/src
+RES_LIB := $(GDK)/res
+INC_LIB := $(GDK)/inc
+
+SHELL := sh
+RM := rm
+CP := cp
+MKDIR := mkdir
+ECHO := echo
+
+CC := m68k-elf-gcc
+LD := m68k-elf-ld
+NM := m68k-elf-nm
+OBJCPY := m68k-elf-objcopy
+CONVSYM := $(BIN)/convsym
+ASMZ80 := $(BIN)/sjasm
+MACCER := mac68k
+BINTOS := $(BIN)/bintos
+LTO_PLUGIN :=
+LIBGCC := -lgcc
+LIBGCCDIR := $(shell dirname $(shell $(CC) -print-file-name=libgcc.a))
+
+JAVA := java
+SIZEBND := $(JAVA) -jar $(BIN)/sizebnd.jar
+RESCOMP := $(JAVA) -jar $(BIN)/rescomp.jar
+
+BUILD_TYPE := release
+ifeq ($(MAKECMDGOALS),debug)
+	BUILD_TYPE := debug
+else ifeq ($(MAKECMDGOALS),Debug)
+	BUILD_TYPE := debug
+else ifeq ($(MAKECMDGOALS),clean-debug)
+	BUILD_TYPE := debug
+endif
+
+CLEAN := FALSE
+ifeq ($(findstring clean,$(MAKECMDGOALS)),clean)
+CLEAN := TRUE
+endif
+
+SRC_DIR := src
+RES_DIR := res
+INC_DIR := inc
+OUT_DIR := out/$(BUILD_TYPE)
+DEP_DIR = $(OUT_DIR)/_deps
+OUT_DIR_LIB := $(GDK)/$(OUT_DIR)
+
+SRC_C = $(wildcard *.c)
+SRC_C += $(wildcard $(SRC_DIR)/*.c)
+SRC_C += $(wildcard $(SRC_DIR)/*/*.c)
+SRC_C += $(wildcard $(SRC_DIR)/*/*/*.c)
+SRC_C += $(wildcard $(SRC_DIR)/*/*/*/*.c)
+SRC_C += $(wildcard $(SRC_DIR)/*/*/*/*/*.c)
+SRC_C := $(filter-out $(SRC_DIR)/rom_header.c,$(SRC_C))
+SRC_S = $(wildcard *.s)
+SRC_S += $(wildcard $(SRC_DIR)/*.s)
+SRC_S += $(wildcard $(SRC_DIR)/*/*.s)
+SRC_S += $(wildcard $(SRC_DIR)/*/*/*.s)
+SRC_S += $(wildcard $(SRC_DIR)/*/*/*/*.s)
+SRC_S += $(wildcard $(SRC_DIR)/*/*/*/*/*.s)
+SRC_ASM = $(wildcard *.asm)
+SRC_ASM += $(wildcard $(SRC_DIR)/*.asm)
+SRC_ASM += $(wildcard $(SRC_DIR)/*/*.asm)
+SRC_ASM += $(wildcard $(SRC_DIR)/*/*/*.asm)
+SRC_ASM += $(wildcard $(SRC_DIR)/*/*/*/*.asm)
+SRC_ASM += $(wildcard $(SRC_DIR)/*/*/*/*/*.asm)
+SRC_ASM := $(SRC_ASM)
+SRC_S80 = $(wildcard *.s80)
+SRC_S80 += $(wildcard $(SRC_DIR)/*.s80)
+SRC_S80 += $(wildcard $(SRC_DIR)/*/*.s80)
+SRC_S80 += $(wildcard $(SRC_DIR)/*/*/*.s80)
+SRC_S80 += $(wildcard $(SRC_DIR)/*/*/*/*.s80)
+SRC_S80 += $(wildcard $(SRC_DIR)/*/*/*/*/*.s80)
+SRC_S80 := $(SRC_S80)
+
+RES_RES = $(wildcard *.res)
+RES_RES += $(wildcard $(RES_DIR)/*.res)
+RES_RES += $(wildcard $(RES_DIR)/*/*.res)
+RES_RES += $(wildcard $(RES_DIR)/*/*/*.res)
+RES_RES += $(wildcard $(RES_DIR)/*/*/*/*.res)
+RES_RES += $(wildcard $(RES_DIR)/*/*/*/*/*.res)
+RES_RES := $(RES_RES)
+
+RES_O = $(RES_RES:.res=.o)
+RES_O := $(addprefix $(OUT_DIR)/, $(RES_O))
+
+OBJS = $(RES_RES:.res=.o)
+OBJS += $(SRC_S80:.s80=.o)
+OBJS += $(SRC_ASM:.asm=.o)
+OBJS += $(SRC_S:.s=.o)
+OBJS += $(SRC_C:.c=.o)
+OBJS := $(addprefix $(OUT_DIR)/, $(OBJS))
+
+DEPS = $(RES_RES:.res=.d)
+DEPS += $(SRC_S:.s=.d)
+DEPS += $(SRC_C:.c=.d)
+DEPS := $(addprefix $(DEP_DIR)/, $(DEPS))
+
+INCS := -I. -I$(INC_DIR) -I$(RES_DIR) -I$(OUT_DIR) -isystem$(INC_LIB) -isystem$(OUT_DIR_LIB)
+DEFAULT_FLAGS := $(EXTRA_FLAGS) -DSGDK_GCC -m68000 -fdiagnostics-color=always -Wall -Wextra -Wno-shift-negative-value -Wno-main -Wno-unused-parameter -fno-builtin -ffunction-sections -fdata-sections -fms-extensions -B$(BIN)
+Z80_FLAGS := -i. -i$(SRC_DIR) -i$(INC_DIR) -i$(RES_DIR) -i$(OUT_DIR) -i$(SRC_LIB) -i$(INC_LIB) -i$(INC_LIB)/snd -i$(OUT_DIR_LIB)
+
+ifeq ($(BUILD_TYPE),debug)
+FLAGS := $(INCS) $(DEFAULT_FLAGS) -O1 -DDEBUG=1
+CFLAGS := $(FLAGS) -ggdb -g
+AFLAGS := -x assembler-with-cpp -Wa,--register-prefix-optional,--bitwise-or $(FLAGS)
+LIBMD := $(LIB)/libmd_debug.a
+else
+FLAGS := $(INCS) $(DEFAULT_FLAGS) -O3 -fuse-linker-plugin -fno-web -fno-gcse -fno-tree-loop-ivcanon -fomit-frame-pointer -flto -flto=auto -ffat-lto-objects
+CFLAGS := $(FLAGS)
+AFLAGS := -x assembler-with-cpp -Wa,--register-prefix-optional,--bitwise-or $(FLAGS)
+LIBMD := $(LIB)/libmd.a
+endif
+
+.PHONY: default
+.PHONY: all
+.PHONY: release
+.PHONY: Release
+.PHONY: debug
+.PHONY: Debug
+.PHONY: clean
+.PHONY: clean-release
+.PHONY: clean-debug
+.PHONY: clean-all
+
+default: release
 all: release
 
-release:
-\tmake -f $(GDK)/makefile.gen release
+Release: release
+Debug: debug
+clean: clean-all
 
-debug:
-\tmake -f $(GDK)/makefile.gen debug
+release: $(OUT_DIR)/rom.bin $(OUT_DIR)/symbol.txt
+release: padROM
+.PHONY: padROM
 
-clean:
-\tmake -f $(GDK)/makefile.gen clean
+debug: $(OUT_DIR)/rom.bin $(OUT_DIR)/symbol.txt
+debug: injectSymbolsInROM
+debug: padROM
+.PHONY: injectSymbolsInROM
+
+clean-all:
+	$(RM) -r -f out
+
+clean-release: clean-task
+clean-debug: clean-task
+
+clean-task:
+	$(RM) -r -f $(OUT_DIR)
+.PHONY: clean-task
+
+padROM:	$(OUT_DIR)/rom.bin
+	$(SIZEBND) $(OUT_DIR)/rom.bin -sizealign 131072 -checksum
+	@$(CP) $(OUT_DIR)/rom.bin out/rom.bin
+
+injectSymbolsInROM:	$(OUT_DIR)/rom.bin $(OUT_DIR)/symbol.txt
+	$(CONVSYM) $(OUT_DIR)/symbol.txt $(OUT_DIR)/rom.bin -in txt -inopt " /fmt='%X %*[TtBbCcDd] %511s' /offsetFirst+" -range 0 FFFFFF -a -ref @MDDBG__SymbolDataPtr
+
+$(OUT_DIR)/rom.bin: $(OUT_DIR)/rom.out $(OUT_DIR)/symbol.txt
+	$(OBJCPY) -O binary $(OUT_DIR)/rom.out $(OUT_DIR)/rom.bin
+
+$(OUT_DIR)/symbol.txt: $(OUT_DIR)/rom.out
+	$(NM) $(LTO_PLUGIN) -n -l $(OUT_DIR)/rom.out > $(OUT_DIR)/symbol.txt
+
+$(OUT_DIR)/rom.out: $(OUT_DIR)/sega.o $(OUT_DIR)/cmd_ $(LIBMD)
+	@$(MKDIR) -p $(dir $@)
+ifeq ($(shell uname),Haiku)
+	$(LD) -T $(GDK)/md.ld --gc-sections -nostdlib $(OUT_DIR)/sega.o @$(OUT_DIR)/cmd_ $(LIBMD) -L$(LIBGCCDIR) -lgcc -o $(OUT_DIR)/rom.out
+else
+	$(CC) -m68000 -B$(BIN) -n -T $(GDK)/md.ld -nostdlib $(OUT_DIR)/sega.o @$(OUT_DIR)/cmd_ $(LIBMD) $(LIBGCC) -o $(OUT_DIR)/rom.out -Wl,--gc-sections -flto -flto=auto -ffat-lto-objects
+endif
+	@$(RM) $(OUT_DIR)/cmd_
+
+$(OUT_DIR)/cmd_: $(OBJS)
+	@$(MKDIR) -p $(dir $@)
+	$(ECHO) "$(OBJS)" > $(OUT_DIR)/cmd_
+
+$(OUT_DIR)/sega.o: out/rom_header.bin
+	@$(MKDIR) -p $(dir $@)
+	$(CP) $(SRC_LIB)/boot/sega.s $(OUT_DIR)/sega.s
+	$(CC) $(AFLAGS) -c $(OUT_DIR)/sega.s -o $@
+
+out/rom_header.bin: $(OUT_DIR)/rom_header.o
+	$(OBJCPY) -O binary $< $@
+
+$(OUT_DIR)/rom_header.o: $(SRC_DIR)/rom_header.c
+	@$(MKDIR) -p $(dir $@)
+	$(CC) $(INCS) $(DEFAULT_FLAGS) -c $< -o $@
+
+$(SRC_DIR)/rom_header.c: | $(SRC_LIB)/boot/rom_header.c
+	@$(MKDIR) -p $(dir $@)
+	$(CP) $| $@
+
+$(OUT_DIR)/%.o: %.c $(DEP_DIR)/%.d
+	@$(MKDIR) -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OUT_DIR)/%.o: %.s $(DEP_DIR)/%.d
+	@$(MKDIR) -p $(dir $@)
+	$(CC) $(AFLAGS) -c $< -o $@
+
+$(OUT_DIR)/%.o: %.asm
+	@$(MKDIR) -p $(dir $@)
+	$(MACCER) -o $(OUT_DIR)/$*.s $<
+	$(CC) $(AFLAGS) -c $(OUT_DIR)/$*.s -o $@
+
+$(OUT_DIR)/%.o: %.s80
+	@$(MKDIR) -p $(dir $@)
+	$(ASMZ80) $(Z80_FLAGS) $< $(OUT_DIR)/$*.o80 $(OUT_DIR)/out.lst
+	$(BINTOS) $(OUT_DIR)/$*.o80 $(OUT_DIR)/$*.s
+	$(CC) $(AFLAGS) -c $(OUT_DIR)/$*.s -o $@
+
+$(OUT_DIR)/%.o: %.res
+	@$(MKDIR) -p $(dir $@)
+	@$(MKDIR) -p $(dir $(DEP_DIR)/$*.d)
+	$(RESCOMP) $< $(OUT_DIR)/$*.s -dep $(OUT_DIR)/$*.o
+	@$(CP) $(OUT_DIR)/$*.d $(DEP_DIR)/$*.d
+	@$(RM) $(OUT_DIR)/$*.d
+	@$(CP) $(OUT_DIR)/$*.h $*.h
+	@$(RM) $(OUT_DIR)/$*.h
+	$(CC) $(AFLAGS) -c $(OUT_DIR)/$*.s -o $@
+
+$(DEP_DIR)/%.d: %.c $(RES_O)
+	@$(MKDIR) -p $(dir $@)
+	$(CC) $(CFLAGS) $< -E -MG -MM -MP -MT $(OUT_DIR)/$*.o -MF $(DEP_DIR)/$*.d
+
+$(DEP_DIR)/%.d: %.s
+	@$(MKDIR) -p $(dir $@)
+	$(CC) $(AFLAGS) $< -E -MG -MM -MP -MT $(OUT_DIR)/$*.o -MF $(DEP_DIR)/$*.d
+
+ifeq ($(CLEAN),FALSE)
+-include $(DEPS)
+endif
 """
 
 GENIO_YAML = """build_mode: 1
 build_file_path: ""
-project_release_build_command: make -f __GDK__/makefile.gen release
-project_release_clean_command: make -f __GDK__/makefile.gen clean
+project_release_build_command: make release
+project_release_clean_command: make clean
 project_release_execute_args: ""
 project_release_target: __ROM_RELEASE__
-project_debug_build_command: make -f __GDK__/makefile.gen debug
-project_debug_clean_command: make -f __GDK__/makefile.gen clean
+project_debug_build_command: make debug
+project_debug_clean_command: make clean
 project_debug_execute_args: ""
 project_debug_target: __ROM_DEBUG__
 project_run_in_terminal: false
@@ -421,7 +646,14 @@ def create_genio_project(parent, name, gdk):
     if os.path.exists(project_dir):
         raise FileExistsError("Destination already exists: " + project_dir)
     written = base_layout(project_dir, name, gdk)
-    makefile = MAKEFILE_WRAPPER.replace("__GDK__", gdk)
+    release_out, debug_out = rom_paths(gdk)
+    release_out = release_out.rsplit("/rom.bin", 1)[0]
+    debug_out = debug_out.rsplit("/rom.bin", 1)[0]
+    makefile = (
+        MAKEFILE_WRAPPER.replace("__GDK__", gdk)
+        .replace("__OUT_RELEASE__", release_out)
+        .replace("__OUT_DEBUG__", debug_out)
+    )
     written.append(write_text(os.path.join(project_dir, "Makefile"), makefile))
     release_rom, debug_rom = rom_paths(gdk)
     yaml_text = (
@@ -446,7 +678,14 @@ def create_paladin_project(parent, name, gdk):
     if os.path.exists(project_dir):
         raise FileExistsError("Destination already exists: " + project_dir)
     written = base_layout(project_dir, name, gdk)
-    makefile = MAKEFILE_WRAPPER.replace("__GDK__", gdk)
+    release_out, debug_out = rom_paths(gdk)
+    release_out = release_out.rsplit("/rom.bin", 1)[0]
+    debug_out = debug_out.rsplit("/rom.bin", 1)[0]
+    makefile = (
+        MAKEFILE_WRAPPER.replace("__GDK__", gdk)
+        .replace("__OUT_RELEASE__", release_out)
+        .replace("__OUT_DEBUG__", debug_out)
+    )
     written.append(write_text(os.path.join(project_dir, "Makefile"), makefile))
     pld = PALADIN_PLD.replace("__NAME__", name).replace("__GDK__", gdk)
     written.append(write_text(os.path.join(project_dir, name + ".pld"), pld))
