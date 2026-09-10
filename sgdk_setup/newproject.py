@@ -190,7 +190,7 @@ padROM:	$(OUT_DIR)/rom.bin
 	@$(CP) $(OUT_DIR)/rom.bin out/rom.bin
 
 injectSymbolsInROM:	$(OUT_DIR)/rom.bin $(OUT_DIR)/symbol.txt
-	$(CONVSYM) $(OUT_DIR)/symbol.txt $(OUT_DIR)/rom.bin -in txt -inopt " /fmt='%X %*[TtBbCcDd] %511s' /offsetFirst+" -range 0 FFFFFF -a -ref @MDDBG__SymbolDataPtr
+	-$(CONVSYM) $(OUT_DIR)/symbol.txt $(OUT_DIR)/rom.bin -in txt -inopt " /fmt='%X %*[TtBbCcDd] %511s' /offsetFirst+" -range 0 FFFFFF -a -ref @MDDBG__SymbolDataPtr
 
 $(OUT_DIR)/rom.bin: $(OUT_DIR)/rom.out $(OUT_DIR)/symbol.txt
 	$(OBJCPY) -O binary $(OUT_DIR)/rom.out $(OUT_DIR)/rom.bin
