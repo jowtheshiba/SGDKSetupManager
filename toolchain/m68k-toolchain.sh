@@ -90,6 +90,10 @@ export PATH="$PREFIX/bin:$PATH"
 
 echo "Building gcc ..."
 export CXXFLAGS="-g -O2 -std=gnu++11"
+if [ "$OS" = "Haiku" ]; then
+  export CFLAGS="-g -O2 -fPIC"
+  export CXXFLAGS="-g -O2 -std=gnu++11 -fPIC"
+fi
 mkdir -p "$BUILD/gcc-$GCC_VER"
 (cd "$BUILD/gcc-$GCC_VER" && "$SRC/gcc-$GCC_VER/configure" --target=m68k-elf --prefix="$PREFIX" --enable-languages=c --without-headers --disable-shared --disable-threads --disable-libssp --disable-libgomp --disable-libquadmath --disable-nls --with-cpu=68000)
 make -C "$BUILD/gcc-$GCC_VER" -j"$JOBS" all-gcc

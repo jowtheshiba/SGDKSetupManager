@@ -151,7 +151,12 @@ def patch_sources(sgdk_dir, emit):
 def build_env(sgdk_dir):
     env = dict(os.environ)
     env["GDK"] = sgdk_dir
-    env["PATH"] = os.path.join(sgdk_dir, "bin") + os.pathsep + env.get("PATH", "")
+    parts = [os.path.join(sgdk_dir, "bin")]
+    local = os.path.join(os.path.expanduser("~"), "m68k-elf", "bin")
+    if os.path.isdir(local):
+        parts.append(local)
+    parts.append(env.get("PATH", ""))
+    env["PATH"] = os.pathsep.join(parts)
     return env
 
 

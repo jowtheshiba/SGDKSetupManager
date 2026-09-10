@@ -130,3 +130,13 @@ def toolchain_status(os_id):
         return {}
     tools = ["m68k-elf-gcc", "java", "cmake", "make"]
     return {tool: shutil.which(tool) is not None for tool in tools}
+
+
+def ensure_local_toolchain():
+    bindir = os.path.join(os.path.expanduser("~"), "m68k-elf", "bin")
+    if os.path.isfile(os.path.join(bindir, "m68k-elf-gcc")):
+        path = os.environ.get("PATH", "")
+        if bindir not in path.split(os.pathsep):
+            os.environ["PATH"] = bindir + os.pathsep + path
+            return True
+    return False

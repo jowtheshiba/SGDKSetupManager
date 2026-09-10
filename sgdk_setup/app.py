@@ -550,6 +550,7 @@ class SGDKSetupApp(App):
 
     def __init__(self):
         super().__init__()
+        system_info.ensure_local_toolchain()
         self.os_id = system_info.detect_os()
         self.repo_url = system_info.DEFAULT_REPO_URL
         self.installer = INSTALLERS.get(self.os_id)
