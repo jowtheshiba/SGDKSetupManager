@@ -376,6 +376,36 @@ def create_vscode_project(parent, name, gdk, compiler="", openemu=False, retroar
     return project_dir, written
 
 
+def genio_compile_commands(project_dir, gdk):
+    entries = []
+    src_dir = os.path.join(project_dir, "src")
+    for root, dirs, files in os.walk(src_dir):
+        for name in sorted(files):
+            if name.endswith(".c"):
+                path = os.path.join(root, name)
+                entries.append(
+                    {
+                        "directory": project_dir,
+                        "command": " ".join(
+                            [
+                                "m68k-elf-gcc",
+                                "-DSGDK_GCC",
+                                "-std=c99",
+                                "-I" + os.path.join(project_dir, "src"),
+                                "-I" + os.path.join(project_dir, "inc"),
+                                "-I" + os.path.join(project_dir, "res"),
+                                "-I" + os.path.join(gdk, "inc"),
+                                "-I" + os.path.join(gdk, "res"),
+                                "-c",
+                                path,
+                            ]
+                        ),
+                        "file": path,
+                    }
+                )
+    return entries
+
+
 def create_genio_project(parent, name, gdk):
     if not valid_name(name):
         raise ValueError("Project name must match [A-Za-z0-9_-]+.")
@@ -392,6 +422,12 @@ def create_genio_project(parent, name, gdk):
         .replace("__ROM_DEBUG__", debug_rom)
     )
     written.append(write_text(os.path.join(project_dir, ".genio.yaml"), yaml_text))
+    written.append(
+        write_json(
+            os.path.join(project_dir, "compile_commands.json"),
+            genio_compile_commands(project_dir, gdk),
+        )
+    )
     return project_dir, written
 
 
