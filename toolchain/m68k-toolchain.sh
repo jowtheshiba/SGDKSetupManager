@@ -106,6 +106,12 @@ echo "Verifying ..."
 echo 'int main(void){return 0;}' | "$PREFIX/bin/m68k-elf-gcc" -m68000 -c -x c - -o "$WORK/smoke.o"
 echo "Smoke test OK: $WORK/smoke.o"
 
+if [ "$OS" = "Haiku" ]; then
+  echo "Linking toolchain into non-packaged bin ..."
+  mkdir -p "$HOME/config/non-packaged/bin"
+  ln -sf "$PREFIX/bin/m68k-elf-"* "$HOME/config/non-packaged/bin/"
+fi
+
 if [ "$KEEP" = "0" ]; then
   echo "Cleaning work dirs ..."
   rm -rf "$BUILD" "$SRC"

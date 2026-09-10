@@ -91,6 +91,13 @@ Same from the terminal:
 Load the ROM (__ROM_RELEASE__ for release, __ROM_DEBUG__ for debug)
 in an emulator or flash it to a Mega EverDrive.
 
+## Genio (Haiku)
+
+Build with the hammer button. The green Play button does not apply:
+a Genesis ROM is not a Haiku executable, Genio has nothing to run.
+Run the ROM with an emulator instead, e.g. `pkgman install mednafen`
+then `mednafen __ROM_RELEASE__`.
+
 ## Genesis-Code extension
 
 The zerasul/genesis-code extension is only partly usable here:
@@ -391,6 +398,7 @@ def genio_compile_commands(project_dir, gdk):
                                 "m68k-elf-gcc",
                                 "-DSGDK_GCC",
                                 "-std=c99",
+                                "-Wno-main",
                                 "-I" + os.path.join(project_dir, "src"),
                                 "-I" + os.path.join(project_dir, "inc"),
                                 "-I" + os.path.join(project_dir, "res"),
